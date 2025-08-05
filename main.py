@@ -1,47 +1,55 @@
 import os
 import uvicorn
-import logging
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from newspaper import Article
+from newspaper import Article, Config
 from urllib.parse import unquote
+import requests
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("news-scraper")
+app = FastAPI()
 
-app = FastAPI(title="News Scraper API", version="1.0")
-
-@app.get("/")
-def home():
-    return {"status": "ok", "message": "News Scraper API online"}
+# Configuração do newspaper3k
+config = Config()
+config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36'
+config.request_timeout = 15  # segundos
 
 @app.get("/scrape")
-def scrape(url: str = Query(..., description="URL da notícia a ser extraída")):
+def scrape(url: str):
     try:
-        logger.info(f"Recebida requisição para URL: {url}")
-
         decoded_url = unquote(url)
-        logger.info(f"URL decodificada: {decoded_url}")
 
-        article = Article(decoded_url, language='pt')
+        # Primeiro, testa se o site responde sem bloqueio
+        head_resp = requests.head(decoded_url, headers={"User-Agent": config.browser_user_agent}, timeout=10)
+        if head_resp.status_code == 403:
+            return {
+                "url": decoded_url,
+                "titulo": "",
+                "texto": "(Conteúdo não acessível - bloqueado pelo site)"
+            }
 
-        logger.info("Baixando conteúdo...")
+        # Faz o scraping do artigo
+        article = Article(decoded_url, language='pt', config=config)
         article.download()
-        logger.info("Download concluído. Iniciando parsing...")
         article.parse()
-        logger.info("Parsing concluído com sucesso.")
 
         return {
             "url": decoded_url,
             "titulo": article.title,
             "texto": article.text
         }
-
     except Exception as e:
-        logger.error(f"Erro ao processar URL: {url} - Erro: {str(e)}", exc_info=True)
-        return JSONResponse(content={"erro": str(e)}, status_code=500)
+        # Em caso de erro, retorna aviso mas não quebra o fluxo
+        return {
+            "url": url,
+            "titulo": "",
+            "texto": f"(Erro ao processar - {str(e)})"
+        }
+
+@app.get("/")
+def home():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Railway define a variável PORT
-    logger.info(f"Iniciando servidor na porta {port}...")
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8000))  # Railway define PORT
+    print(f"Iniciando servidor na porta {port}...")
+    uvicorn.run(app, host="0.0.0.0", port=port)
