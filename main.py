@@ -1,40 +1,32 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
-import newspaper
 from newspaper import Article
-from newspaper.article import ArticleException
 import uvicorn
 
 app = FastAPI()
 
 @app.get("/scrape")
-def scrape(url: str = Query(..., description="URL da notícia")):
+def scrape(url: str = Query(..., description="URL da notícia para extrair conteúdo")):
     try:
-        article = Article(url, language='pt')
+        article = Article(url)
         article.download()
         article.parse()
-        article.nlp()
 
-        # Se o texto for muito curto, assume que é restrito
-        if len(article.text.strip()) < 200:
-            return JSONResponse(content={
-                "title": article.title,
-                "text": "(Conteúdo restrito a assinantes)",
-                "summary": None
-            })
+        return {
+            "url": url,
+            "titulo": article.title,
+            "texto": article.text
+        }
 
-        return JSONResponse(content={
-            "title": article.title,
-            "text": article.text,
-            "summary": article.summary
-        })
-    except ArticleException as e:
-        return JSONResponse(content={
-            "title": None,
-            "text": None,
-            "summary": None,
-            "error": str(e)
-        }, status_code=400)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.get("/")
+def home():
+    return {"status": "OK", "mensagem": "Scraper API está no ar!"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
