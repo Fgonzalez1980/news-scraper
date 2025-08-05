@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from newspaper import Article
 from urllib.parse import unquote
 
-# Configuração de logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("news-scraper")
 
