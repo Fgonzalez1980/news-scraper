@@ -1,32 +1,32 @@
-from fastapi import FastAPI, Query
+import os
+import uvicorn
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from newspaper import Article
-import uvicorn
+from urllib.parse import unquote
 
 app = FastAPI()
 
 @app.get("/scrape")
-def scrape(url: str = Query(..., description="URL da notícia para extrair conteúdo")):
+def scrape(url: str):
     try:
-        article = Article(url)
+        decoded_url = unquote(url)
+        article = Article(decoded_url, language='pt')
         article.download()
         article.parse()
 
         return {
-            "url": url,
+            "url": decoded_url,
             "titulo": article.title,
             "texto": article.text
         }
-
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.get("/")
 def home():
-    return {"status": "OK", "mensagem": "Scraper API está no ar!"}
+    return {"status": "ok"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
