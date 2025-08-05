@@ -1,4 +1,5 @@
 fastapi
 uvicorn
 newspaper3k
-lxml-html-clean
+lxml
+requests
